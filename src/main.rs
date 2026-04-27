@@ -8,8 +8,8 @@ use utils::{copy_to_clipboard, format_timestamp, launch_terminal};
 
 const BANNER: &str = r#"
   ╔══════════════════════════════════════════════╗
-  ║                ⚡  swt  ⚡                    ║
-  ║   AI Coding Session Manager                  ║
+  ║                 >>  swt  <<                  ║
+  ║           AI Coding Session Manager          ║
   ╚══════════════════════════════════════════════╝
 "#;
 
