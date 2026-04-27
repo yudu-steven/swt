@@ -356,7 +356,12 @@ fn view_messages(session: &SessionMeta) {
         return;
     }
 
-    let chunk_size = 20;
+    // Fit one page within terminal height: header 3 lines + footer 2 lines
+    let (_, rows) = term.size();
+    let chunk_size = {
+        let raw = (rows as usize).saturating_sub(5) / 4;
+        raw.clamp(1, 25)
+    };
     let total_chunks = (messages.len() + chunk_size - 1) / chunk_size;
     let chunks: Vec<&[providers::SessionMessage]> = messages.chunks(chunk_size).collect();
     let mut page: usize = 0;
@@ -416,6 +421,14 @@ fn view_messages(session: &SessionMeta) {
             }
             println!();
         }
+
+        println!(
+            "{} {}/{} {}",
+            "─── End of page".dimmed(),
+            page + 1,
+            total_chunks,
+            "───".dimmed()
+        );
 
         // Read arrow key
         match term.read_key() {
