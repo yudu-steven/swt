@@ -260,11 +260,7 @@ fn session_detail_view(session: &SessionMeta) {
                         continue;
                     }
                 };
-                let full_cmd = match session.project_dir.as_deref() {
-                    Some(dir) if !dir.trim().is_empty() => format!("cd \"{}\" && {}", dir, cmd),
-                    _ => cmd.to_string(),
-                };
-                match copy_to_clipboard(&full_cmd) {
+                match copy_to_clipboard(cmd) {
                     Ok(_) => println!("{} {}", "✓".bright_green(), "Copied to clipboard".bold()),
                     Err(e) => println!("{} {}", "✗".red(), e),
                 }
@@ -284,11 +280,7 @@ fn session_detail_view(session: &SessionMeta) {
                     Ok(_) => println!("{} {}", "✓".bright_green(), "Launched in terminal".bold()),
                     Err(e) => {
                         println!("{} Term launch failed: {}", "✗".yellow(), e);
-                        let full_cmd = match session.project_dir.as_deref() {
-                            Some(dir) if !dir.trim().is_empty() => format!("cd \"{}\" && {}", dir, cmd),
-                            _ => cmd.to_string(),
-                        };
-                        let _ = copy_to_clipboard(&full_cmd);
+                        let _ = copy_to_clipboard(cmd);
                         println!("{} Copied to clipboard as fallback", "✓".bright_green());
                     }
                 }
@@ -624,24 +616,19 @@ fn cmd_resume(id: &str, provider: Option<&str>, copy_only: bool, launch: bool) {
         }
     };
 
-    let full_cmd = match session.project_dir.as_deref() {
-        Some(dir) if !dir.trim().is_empty() => format!("cd \"{}\" && {}", dir, cmd),
-        _ => cmd.to_string(),
-    };
-
     println!(
         "\n{}  {}",
         provider_icon(&session.provider_id),
         format_session_title(session).bold()
     );
-    println!("{} {}", "Command:".dimmed(), full_cmd.bright_green());
+    println!("{} {}", "Command:".dimmed(), cmd.bright_green());
 
     if copy_only || !launch {
-        match copy_to_clipboard(&full_cmd) {
+        match copy_to_clipboard(cmd) {
             Ok(_) => println!("{} {}", "✓".bright_green(), "Copied to clipboard"),
             Err(e) => {
                 println!("{} {}", "✗".yellow(), e);
-                println!("\n  Run this:\n  {}", full_cmd);
+                println!("\n  Run this:\n  {}", cmd);
             }
         }
     } else {
@@ -649,7 +636,7 @@ fn cmd_resume(id: &str, provider: Option<&str>, copy_only: bool, launch: bool) {
             Ok(_) => println!("{} {}", "✓".bright_green(), "Launched in terminal"),
             Err(e) => {
                 println!("{} Term failed: {}", "✗".yellow(), e);
-                let _ = copy_to_clipboard(&full_cmd);
+                let _ = copy_to_clipboard(cmd);
                 println!("{} Copied to clipboard instead", "✓".bright_green());
             }
         }

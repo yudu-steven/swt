@@ -347,18 +347,13 @@ pub fn launch_terminal(command: &str, cwd: Option<&str>) -> Result<(), String> {
 fn launch_windows_terminal(command: &str, cwd: Option<&str>) -> Result<(), String> {
     use std::process::Command;
 
-    let full_cmd = match cwd {
-        Some(dir) if !dir.trim().is_empty() => format!("cd /d \"{}\" && {}", dir, command),
-        _ => command.to_string(),
-    };
-
-    // Try Windows Terminal first, fall back to cmd
+    // Try Windows Terminal first — `-d` sets the working directory
     let wt_result = Command::new("wt")
         .arg("-d")
         .arg(cwd.unwrap_or("."))
         .arg("cmd")
         .arg("/k")
-        .arg(&full_cmd)
+        .arg(command)
         .spawn();
 
     match wt_result {
@@ -372,7 +367,7 @@ fn launch_windows_terminal(command: &str, cwd: Option<&str>) -> Result<(), Strin
         .arg("start")
         .arg("cmd")
         .arg("/k")
-        .arg(&full_cmd)
+        .arg(command)
         .spawn()
         .map_err(|e| format!("Failed to launch terminal: {e}"))?;
 
