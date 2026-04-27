@@ -1,20 +1,22 @@
 # swt
 
-> Browse, search, resume and delete AI coding sessions �?OpenCode, Claude Code, Codex.
+> Browse, search, resume and delete AI coding sessions — OpenCode, Claude Code, Codex.
 > **One binary, zero config.**
 
 ```
   ╔══════════════════════════════════════════════╗
-  �?              �? swt  �?                 �?  �?  AI Coding Session Manager                  �?  ╚══════════════════════════════════════════════╝
+  ║               ⚡  swt  ⚡                    ║
+  ║   AI Coding Session Manager                  ║
+  ╚══════════════════════════════════════════════╝
 ```
 
 ## Features
 
 - **3 providers**: OpenCode, Claude Code, Codex
-- **Interactive mode**: `swt` (no args) �?browse with arrow keys
-- **List sessions**: `swt ls` �?with provider icons, timestamps, projects
-- **View conversations**: `swt cat <id>` �?full message timeline with role colors
-- **Resume sessions**: `swt res <id>` �?copies `cd dir && resume-command` to clipboard
+- **Interactive mode**: `swt` (no args) — browse with arrow keys
+- **List sessions**: `swt ls` — with provider icons, timestamps, projects
+- **View conversations**: `swt cat <id>` — full message timeline with role colors
+- **Resume sessions**: `swt res <id>` — copies `cd dir && resume-command` to clipboard
 - **Terminal launch**: `swt res <id> --launch` (Windows)
 - **Delete sessions**: `swt rm <id>`
 - **Search**: `swt ls --search keyword`
@@ -38,10 +40,10 @@ swt ls --search keyword
 # Show conversation
 swt cat ses_231d
 
-# Resume �?copy command to clipboard
+# Resume — copy command to clipboard
 swt res ses_231d
 
-# Resume �?open in terminal
+# Resume — open in terminal
 swt res ses_231d --launch
 
 # Delete
@@ -85,11 +87,11 @@ cargo build --release
 Multiple candidate paths are scanned (USERPROFILE, HOME, system home dir), so it works
 even in sandboxed shells.
 
-**Read-only by default** �?swt never modifies your session files unless you explicitly run `swt rm`.
+**Read-only by default** — swt never modifies your session files unless you explicitly run `swt rm`.
 
 ## Why swt?
 
-| | cc-swt | swt |
+| | cc-switch | swt |
 |---|---|---|
 | **Size** | ~15-30 MB (Tauri desktop app) | **~4 MB** (single binary) |
 | **GUI** | Full React UI | Terminal-native |
