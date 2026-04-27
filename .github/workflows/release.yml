@@ -4,6 +4,9 @@ on:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -12,22 +15,15 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             binary: swt.exe
-            ext: .exe
-
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             binary: swt
-            ext: ""
-
           - os: macos-latest
             target: x86_64-apple-darwin
             binary: swt
-            ext: ""
-
           - os: macos-latest
             target: aarch64-apple-darwin
             binary: swt
-            ext: ""
 
     runs-on: ${{ matrix.os }}
 
@@ -50,9 +46,16 @@ jobs:
 
       - name: Rename binary
         shell: bash
-        run: mv target/${{ matrix.target }}/release/${{ matrix.binary }} swt-${{ matrix.target }}${{ matrix.ext }}
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            mv target/${{ matrix.target }}/release/${{ matrix.binary }} swt-${{ matrix.target }}.exe
+          else
+            mv target/${{ matrix.target }}/release/${{ matrix.binary }} swt-${{ matrix.target }}
+          fi
 
       - name: Upload to Release
-        run: gh release upload ${{ github.ref_name }} swt-${{ matrix.target }}${{ matrix.ext }} --clobber
+        uses: softprops/action-gh-release@v2
+        with:
+          files: swt-${{ matrix.target }}*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
