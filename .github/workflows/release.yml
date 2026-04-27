@@ -28,7 +28,7 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             binary: swt
-            artifact: swt-macos
+            artifact: swt-macos-apple-silicon
 
     runs-on: ${{ matrix.os }}
 
@@ -51,16 +51,11 @@ jobs:
 
       - name: Rename binary
         shell: bash
-        run: |
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            mv target/${{ matrix.target }}/release/${{ matrix.binary }} swt-${{ matrix.target }}.exe
-          else
-            mv target/${{ matrix.target }}/release/${{ matrix.binary }} swt-${{ matrix.target }}
-          fi
+        run: mv target/${{ matrix.target }}/release/${{ matrix.binary }} ${{ matrix.artifact }}
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: swt-${{ matrix.target }}*
+          files: ${{ matrix.artifact }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
