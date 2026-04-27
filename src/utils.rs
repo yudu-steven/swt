@@ -102,6 +102,15 @@ pub fn codex_sessions_dirs() -> Vec<PathBuf> {
         }
     }
 
+    // macOS: ~/Library/Application Support/Codex/sessions
+    // Windows: %LOCALAPPDATA%/Codex/sessions
+    if let Some(data) = dirs::data_local_dir() {
+        let p = data.join("Codex").join("sessions");
+        if !dirs.contains(&p) {
+            dirs.push(p);
+        }
+    }
+
     for home in candidate_home_dirs() {
         let p = home.join(".codex").join("sessions");
         if !dirs.contains(&p) {
