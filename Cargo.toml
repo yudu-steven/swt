@@ -1,0 +1,20 @@
+[package]
+name = "swt"
+version = "0.2.0"
+edition = "2021"
+description = "Browse, search, resume and delete AI coding sessions — OpenCode, Claude Code, Codex. One binary, zero config."
+repository = "https://github.com/your-username/swt"
+license = "MIT"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "cargo"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+colored = "2"
+arboard = "3"
+rusqlite = { version = "0.31", features = ["bundled"] }
+regex = "1"
+dirs = "5"
+dialoguer = "0.11"
+console = "0.15"
