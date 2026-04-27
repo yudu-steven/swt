@@ -194,36 +194,41 @@ fn session_detail_view(session: &SessionMeta) {
         let _ = term.clear_screen();
 
         // ── Header card ──
-        let width = 64;
-        let top = format!("╔{}╗", "═".repeat(width - 2));
-        let bot = format!("╚{}╝", "═".repeat(width - 2));
+        let width = 80;
+        let inner = width - 2; // space between ║ borders
+        let top = format!("╔{}╗", "═".repeat(inner));
+        let bot = format!("╚{}╝", "═".repeat(inner));
 
         println!("{}", BANNER.bright_cyan());
         println!("{}", top.dimmed());
 
+        // Helper: print a card row, ANSI-colour-safe padding via measure_text_width
         let icon = provider_icon(&session.provider_id);
         let provider = provider_label(&session.provider_id);
-        println!(
-            "║ {}  {:<w$}║",
-            icon,
-            format!("{}  —  {}", provider.bold(), session.session_id.dimmed()),
-            w = width - 6
+        card_row(
+            inner,
+            &format!(
+                " {}  {}  —  {}",
+                icon,
+                provider.bold(),
+                session.session_id.dimmed()
+            ),
         );
 
         if let Some(ref title) = session.title {
-            println!("║  {:<w$}║", format!("📝  {}", title), w = width - 4);
+            card_row(inner, &format!("  📝  {}", title));
         }
         if let Some(ref dir) = session.project_dir {
-            println!("║  {:<w$}║", format!("📁  {}", dir), w = width - 4);
+            card_row(inner, &format!("  📁  {}", dir));
         }
         if let Some(ts) = session.created_at {
-            println!("║  {:<w$}║", format!("🕐  Created: {}", format_timestamp(ts)), w = width - 4);
+            card_row(inner, &format!("  🕐  Created: {}", format_timestamp(ts)));
         }
         if let Some(ts) = session.last_active_at {
-            println!("║  {:<w$}║", format!("🕑  Updated: {}", format_timestamp(ts)), w = width - 4);
+            card_row(inner, &format!("  🕑  Updated: {}", format_timestamp(ts)));
         }
         if let Some(ref cmd) = session.resume_command {
-            println!("║  {:<w$}║", format!("▶  Resume: {}", cmd.bright_green()), w = width - 4);
+            card_row(inner, &format!("  ▶  Resume: {}", cmd.bright_green()));
         }
         println!("{}", bot.dimmed());
         println!();
@@ -421,6 +426,14 @@ fn view_messages(session: &SessionMeta) {
 
     println!();
     wait_for_enter();
+}
+
+/// Print a card row `║  content  ║` with correct padding when content contains ANSI codes
+fn card_row(inner: usize, content: &str) {
+    use console::measure_text_width;
+    let visible = measure_text_width(content);
+    let pad = inner.saturating_sub(visible);
+    println!("║{}{}║", content, " ".repeat(pad));
 }
 
 fn wait_for_enter() {
