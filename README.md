@@ -1,104 +1,119 @@
 # swt
 
-> Browse, search, resume and delete AI coding sessions — OpenCode, Claude Code, Codex.
-> **One binary, zero config.**
+[中文] | [English](README_EN.md)
+
+> 浏览、搜索、恢复和删除 AI 编程会话 — OpenCode、Claude Code、Codex。
+> **单文件，零配置。**
 
 ```
   ╔══════════════════════════════════════════════╗
-  ║               ⚡  swt  ⚡                    ║
-  ║   AI Coding Session Manager                  ║
+  ║                 >>  swt  <<                  ║
+  ║           AI Coding Session Manager          ║
   ╚══════════════════════════════════════════════╝
 ```
 
-## Features
+## 功能
 
-- **3 providers**: OpenCode, Claude Code, Codex
-- **Interactive mode**: `swt` (no args) — browse with arrow keys
-- **List sessions**: `swt ls` — with provider icons, timestamps, projects
-- **View conversations**: `swt cat <id>` — full message timeline with role colors
-- **Resume sessions**: `swt res <id>` — copies `cd dir && resume-command` to clipboard
-- **Terminal launch**: `swt res <id> --launch` (Windows)
-- **Delete sessions**: `swt rm <id>`
-- **Search**: `swt ls --search keyword`
-- **Zero config**: auto-detects OpenCode/Claude/Codex data paths across multiple candidates
+- **3 个 Provider**: OpenCode、Claude Code、Codex
+- **交互模式**: 直接输入 `swt` — 方向键浏览选择
+- **列出会话**: `swt ls` — 带 Provider 图标、时间、项目名
+- **查看对话**: `swt cat <id>` — 完整消息时间线，角色着色
+- **恢复会话**: `swt res <id>` — 复制恢复命令到剪贴板
+- **终端启动**: `swt res <id> --launch` (Windows)
+- **删除会话**: `swt rm <id>`
+- **搜索**: `swt ls --search 关键词`
+- **零配置**: 自动检测多个候选路径中的 OpenCode/Claude/Codex 数据
 
-## Quick Start
+## 添加到 PATH（推荐）
+
+将 `swt.exe` 所在目录加入系统 PATH，任何终端直接 `swt` 即可使用：
 
 ```powershell
-# Interactive mode (recommended)
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";你的安装目录", [EnvironmentVariableTarget]::User)
+```
+
+把 `你的安装目录` 改成 `swt.exe` 实际所在路径（如 `D:\tools`）。新开终端验证：
+
+```powershell
+swt --version
+```
+
+## 快速开始
+
+```powershell
+# 交互模式（推荐）
 swt
 
-# List all sessions
+# 列出所有会话
 swt ls
 
-# List only OpenCode sessions
+# 只看 OpenCode
 swt ls opencode
 
-# Search
-swt ls --search keyword
+# 搜索
+swt ls --search 关键词
 
-# Show conversation
+# 查看对话
 swt cat ses_231d
 
-# Resume — copy command to clipboard
+# 恢复 — 复制命令到剪贴板
 swt res ses_231d
 
-# Resume — open in terminal
+# 恢复 — 在终端中打开
 swt res ses_231d --launch
 
-# Delete
+# 删除
 swt rm ses_231d --provider opencode
 
-# Check data paths
+# 查看数据路径
 swt info
 ```
 
-## Installation
+## 安装
 
-### Download prebuilt binary
+### 下载预编译二进制
 
-Go to [Releases](https://github.com/your-username/swt/releases) and download `swt.exe` (Windows) or `swt` (macOS/Linux).
+前往 [Releases](https://github.com/your-username/swt/releases) 下载 `swt.exe` (Windows) 或 `swt` (macOS/Linux)。
 
-### Install via Cargo
+### 通过 Cargo 安装
 
 ```bash
 cargo install --git https://github.com/your-username/swt
 ```
 
-### Build from source
+### 从源码构建
 
 ```bash
 git clone https://github.com/your-username/swt
 cd swt
 cargo build --release
-# Binary at: target/release/swt (or swt.exe)
+# 产物: target/release/swt (或 swt.exe)
 ```
 
-## How It Works
+## 工作原理
 
-`swt` scans local session data from AI coding tools:
+`swt` 扫描 AI 编程工具的本地会话数据：
 
-| Provider | Data Path (Windows) |
+| Provider | 数据路径 (Windows) |
 |----------|-------------------|
-| **OpenCode** | `%USERPROFILE%\.local\share\opencode\opencode.db` (SQLite) or `storage/` (JSON) |
+| **OpenCode** | `%USERPROFILE%\.local\share\opencode\opencode.db` (SQLite) 或 `storage/` (JSON) |
 | **Claude Code** | `%USERPROFILE%\.claude\projects\*.jsonl` |
 | **Codex** | `%USERPROFILE%\.codex\sessions\*.jsonl` |
 
-Multiple candidate paths are scanned (USERPROFILE, HOME, system home dir), so it works
-even in sandboxed shells.
+多种候选路径都会被扫描（USERPROFILE、HOME、系统 home 目录），即使在沙箱化 shell 中也能正常工作。
 
-**Read-only by default** — swt never modifies your session files unless you explicitly run `swt rm`.
+**默认只读** — swt 不会修改你的会话文件，除非你主动执行 `swt rm`。
 
-## Why swt?
+## 为什么选择 swt？
 
 | | cc-switch | swt |
 |---|---|---|
-| **Size** | ~15-30 MB (Tauri desktop app) | **~4 MB** (single binary) |
-| **GUI** | Full React UI | Terminal-native |
-| **Providers** | 6 (Claude/Codex/OpenCode/OpenClaw/Gemini/Hermes) | 3 (OpenCode/Claude/Codex) |
-| **Config** | SQLite database | None required |
-| **Usage** | Desktop app + tray | CLI + interactive TUI |
+| **体积** | ~15-30 MB (Tauri 桌面应用) | **~4 MB** (单个二进制) |
+| **界面** | 完整 React UI | 终端原生 |
+| **Provider 数** | 6 个 | 3 个 (OpenCode/Claude/Codex) |
+| **配置** | SQLite 数据库 | 无需配置 |
+| **使用方式** | 桌面应用 + 托盘 | CLI + 交互式 TUI |
 
-## License
+## 许可证
 
 MIT
