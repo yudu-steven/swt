@@ -329,7 +329,7 @@ fn session_detail_view(session: &SessionMeta) {
 }
 
 fn view_messages(session: &SessionMeta) {
-    use console::Term;
+    use console::{Key, Term};
 
     let term = Term::stdout();
     let source_path = match session.source_path.as_deref() {
@@ -356,37 +356,32 @@ fn view_messages(session: &SessionMeta) {
         return;
     }
 
-    println!(
-        "{}  {}  {}",
-        "─".repeat(4).dimmed(),
-        format!("{} messages", messages.len()).bold(),
-        "─".repeat(50).dimmed()
-    );
-    println!();
-
-    // Paginate — show in chunks of 20
     let chunk_size = 20;
     let total_chunks = (messages.len() + chunk_size - 1) / chunk_size;
+    let chunks: Vec<&[providers::SessionMessage]> = messages.chunks(chunk_size).collect();
+    let mut page: usize = 0;
 
-    for (chunk_idx, chunk) in messages.chunks(chunk_size).enumerate() {
-        if chunk_idx > 0 {
-            println!(
-                "\n{} {}/{} {}",
-                "───".dimmed(),
-                chunk_idx + 1,
-                total_chunks,
-                "───".dimmed()
-            );
-            println!("{}", "Press Enter for next page, q to quit.".dimmed());
+    loop {
+        let _ = term.clear_screen();
 
-            let mut input = String::new();
-            std::io::stdin().read_line(&mut input).unwrap_or_default();
-            if input.trim().to_lowercase() == "q" {
-                return;
-            }
-            let _ = term.clear_screen();
-        }
+        println!(
+            "{}  {}  {}",
+            "─".repeat(4).dimmed(),
+            format!("{} messages", messages.len()).bold(),
+            "─".repeat(50).dimmed()
+        );
+        println!(
+            "{} {} {}/{} {} {}",
+            "Page".bold(),
+            (page + 1).to_string().bright_cyan().bold(),
+            page + 1,
+            total_chunks,
+            "─".repeat(4).dimmed(),
+            "(← prev  → next  q quit)".dimmed(),
+        );
+        println!();
 
+        let chunk = chunks[page];
         for msg in chunk {
             let role_display = match msg.role.as_str() {
                 "user" => format!("{}", "You".bright_white().bold()),
@@ -404,7 +399,6 @@ fn view_messages(session: &SessionMeta) {
                 "─".repeat(30).dimmed()
             );
 
-            // Truncate very long tool outputs
             let content = &msg.content;
             let lines: Vec<&str> = content.lines().collect();
             if lines.len() > 30 {
@@ -422,10 +416,23 @@ fn view_messages(session: &SessionMeta) {
             }
             println!();
         }
-    }
 
-    println!();
-    wait_for_enter();
+        // Read arrow key
+        match term.read_key() {
+            Ok(Key::ArrowLeft) => {
+                if page > 0 {
+                    page -= 1;
+                }
+            }
+            Ok(Key::ArrowRight) => {
+                if page + 1 < total_chunks {
+                    page += 1;
+                }
+            }
+            Ok(Key::Char('q')) | Ok(Key::Char('Q')) => return,
+            _ => {}
+        }
+    }
 }
 
 /// Print a card row `║  content  ║` with correct padding when content contains ANSI codes
