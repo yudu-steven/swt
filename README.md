@@ -71,20 +71,30 @@ swt info
 
 ## 安装
 
-### 下载预编译二进制
+### Scoop (Windows)
 
-前往 [Releases](https://github.com/your-username/swt/releases) 下载 `swt.exe` (Windows) 或 `swt` (macOS/Linux)。
+```powershell
+scoop bucket add yudu-steven https://github.com/yudu-steven/scoop-bucket
+scoop install swt
+```
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew tap yudu-steven/swt
+brew install swt
+```
 
 ### 通过 Cargo 安装
 
 ```bash
-cargo install --git https://github.com/your-username/swt
+cargo install --git https://github.com/yudu-steven/swt
 ```
 
 ### 从源码构建
 
 ```bash
-git clone https://github.com/your-username/swt
+git clone https://github.com/yudu-steven/swt
 cd swt
 cargo build --release
 # 产物: target/release/swt (或 swt.exe)

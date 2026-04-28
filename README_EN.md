@@ -57,20 +57,30 @@ swt info
 
 ## Installation
 
-### Download prebuilt binary
+### Scoop (Windows)
 
-Go to [Releases](https://github.com/your-username/swt/releases) and download `swt.exe` (Windows) or `swt` (macOS/Linux).
+```powershell
+scoop bucket add yudu-steven https://github.com/yudu-steven/scoop-bucket
+scoop install swt
+```
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew tap yudu-steven/swt
+brew install swt
+```
 
 ### Install via Cargo
 
 ```bash
-cargo install --git https://github.com/your-username/swt
+cargo install --git https://github.com/yudu-steven/swt
 ```
 
 ### Build from source
 
 ```bash
-git clone https://github.com/your-username/swt
+git clone https://github.com/yudu-steven/swt
 cd swt
 cargo build --release
 # Binary at: target/release/swt (or swt.exe)
