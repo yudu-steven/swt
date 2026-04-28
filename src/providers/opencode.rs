@@ -114,7 +114,7 @@ fn scan_sqlite() -> Vec<SessionMeta> {
             sessions.push(SessionMeta {
                 provider_id: PROVIDER_ID.to_string(),
                 session_id: session_id.clone(),
-                title: display_title.clone(),
+                title: None,
                 summary: display_title,
                 project_dir: if directory.is_empty() {
                     None
@@ -175,7 +175,7 @@ fn parse_session_json(storage: &Path, path: &Path) -> Option<SessionMeta> {
     Some(SessionMeta {
         provider_id: PROVIDER_ID.to_string(),
         session_id: session_id.clone(),
-        title: display_title,
+        title: None,
         summary,
         project_dir: directory,
         created_at,

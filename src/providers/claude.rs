@@ -127,22 +127,12 @@ fn parse_session(path: &Path) -> Option<SessionMeta> {
 
     let session_id = session_id.or_else(|| infer_session_id_from_filename(path))?;
 
-    let title = custom_title
-        .map(|t| truncate_summary(&t, TITLE_MAX_CHARS))
-        .or_else(|| first_user_message.map(|t| truncate_summary(&t, TITLE_MAX_CHARS)))
-        .or_else(|| {
-            project_dir
-                .as_deref()
-                .and_then(path_basename)
-                .map(|v| v.to_string())
-        });
-
     let summary = summary.map(|text| truncate_summary(&text, 160));
 
     Some(SessionMeta {
         provider_id: PROVIDER_ID.to_string(),
         session_id: session_id.clone(),
-        title,
+        title: None,
         summary,
         project_dir,
         created_at,
