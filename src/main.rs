@@ -4,7 +4,7 @@ mod utils;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use providers::{delete_session, load_messages, scan_all, SessionMeta};
-use utils::{copy_to_clipboard, format_timestamp, launch_terminal};
+use utils::{copy_to_clipboard, format_timestamp, launch_resume_terminal};
 
 const BANNER: &str = r#"
   ╔══════════════════════════════════════════════╗
@@ -281,7 +281,11 @@ fn session_detail_view(session: &SessionMeta) {
                         continue;
                     }
                 };
-                match launch_terminal(cmd, session.project_dir.as_deref()) {
+                match launch_resume_terminal(
+                    &session.provider_id,
+                    &session.session_id,
+                    session.project_dir.as_deref(),
+                ) {
                     Ok(_) => println!("{} {}", "✓".bright_green(), "Launched in terminal".bold()),
                     Err(e) => {
                         println!("{} Term launch failed: {}", "✗".yellow(), e);
@@ -665,7 +669,11 @@ fn cmd_resume(id: &str, provider: Option<&str>, copy_only: bool, launch: bool) {
             }
         }
     } else {
-        match launch_terminal(cmd, session.project_dir.as_deref()) {
+        match launch_resume_terminal(
+            &session.provider_id,
+            &session.session_id,
+            session.project_dir.as_deref(),
+        ) {
             Ok(_) => println!("{} {}", "✓".bright_green(), "Launched in terminal"),
             Err(e) => {
                 println!("{} Term failed: {}", "✗".yellow(), e);
@@ -928,22 +936,5 @@ fn trunc(s: &str, max_chars: usize) -> String {
 }
 
 fn count_jsonl_files(dir: &std::path::Path) -> usize {
-    if !dir.exists() {
-        return 0;
-    }
-    let mut count = 0;
-    let mut stack = vec![dir.to_path_buf()];
-    while let Some(current) = stack.pop() {
-        if let Ok(entries) = std::fs::read_dir(&current) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    stack.push(path);
-                } else if path.extension().and_then(|e| e.to_str()) == Some("jsonl") {
-                    count += 1;
-                }
-            }
-        }
-    }
-    count
+    utils::collect_files_safely(dir, "jsonl").len()
 }

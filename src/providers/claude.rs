@@ -1,12 +1,9 @@
 use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde_json::Value;
 
-use crate::utils::{
-    extract_text, parse_timestamp_to_ms, path_basename, read_head_tail_lines, truncate_summary,
-    TITLE_MAX_CHARS,
-};
+use crate::utils::{extract_text, parse_timestamp_to_ms, read_head_tail_lines, truncate_summary};
 
 use super::{SessionMessage, SessionMeta};
 
@@ -18,7 +15,7 @@ pub fn scan_sessions() -> Vec<SessionMeta> {
     let mut files = Vec::new();
     for root in crate::utils::claude_projects_dirs() {
         if root.exists() {
-            collect_jsonl_files(&root, &mut files);
+            files.extend(crate::utils::collect_files_safely(&root, "jsonl"));
         }
     }
 
@@ -138,7 +135,7 @@ fn parse_session(path: &Path) -> Option<SessionMeta> {
         created_at,
         last_active_at,
         source_path: Some(path.to_string_lossy().to_string()),
-        resume_command: Some(format!("claude --resume {session_id}")),
+        resume_command: crate::utils::resume_command(PROVIDER_ID, &session_id),
     })
 }
 
@@ -244,20 +241,3 @@ fn infer_session_id_from_filename(path: &Path) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-fn collect_jsonl_files(root: &Path, files: &mut Vec<PathBuf>) {
-    if !root.exists() {
-        return;
-    }
-    let entries = match std::fs::read_dir(root) {
-        Ok(e) => e,
-        Err(_) => return,
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect_jsonl_files(&path, files);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("jsonl") {
-            files.push(path);
-        }
-    }
-}

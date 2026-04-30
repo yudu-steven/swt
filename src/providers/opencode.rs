@@ -124,7 +124,7 @@ fn scan_sqlite() -> Vec<SessionMeta> {
                 created_at: Some(created),
                 last_active_at: Some(updated),
                 source_path: Some(format!("sqlite:{db_display}:{session_id}")),
-                resume_command: Some(format!("opencode --session {session_id}")),
+                resume_command: crate::utils::resume_command(PROVIDER_ID, &session_id),
             });
         }
     }
@@ -181,7 +181,7 @@ fn parse_session_json(storage: &Path, path: &Path) -> Option<SessionMeta> {
         created_at,
         last_active_at: updated_at.or(created_at),
         source_path: Some(source_path),
-        resume_command: Some(format!("opencode --session {session_id}")),
+        resume_command: crate::utils::resume_command(PROVIDER_ID, &session_id),
     })
 }
 
@@ -203,6 +203,9 @@ fn get_first_user_summary(storage: &Path, session_id: &str) -> Option<String> {
             continue;
         }
         let msg_id = value.get("id").and_then(Value::as_str)?.to_string();
+        if validate_storage_key(&msg_id, "message ID").is_err() {
+            continue;
+        }
         let ts = value
             .get("time")
             .and_then(|t| t.get("created"))
@@ -213,8 +216,7 @@ fn get_first_user_summary(storage: &Path, session_id: &str) -> Option<String> {
 
     user_msgs.sort_by_key(|(ts, _)| *ts);
     let (_, first_id) = user_msgs.first()?;
-    let part_dir = storage.join("part").join(first_id);
-    let text = collect_parts_text(&part_dir);
+    let text = collect_parts_text(storage, first_id).ok()?;
     if text.trim().is_empty() {
         return None;
     }
@@ -248,6 +250,7 @@ pub fn load_messages(path: &Path) -> Result<Vec<SessionMessage>, String> {
             Some(id) => id.to_string(),
             None => continue,
         };
+        validate_storage_key(&msg_id, "message ID")?;
         let role = value
             .get("role")
             .and_then(Value::as_str)
@@ -259,8 +262,7 @@ pub fn load_messages(path: &Path) -> Result<Vec<SessionMessage>, String> {
             .and_then(parse_timestamp_to_ms)
             .unwrap_or(0);
 
-        let part_dir = storage.join("part").join(&msg_id);
-        let text = collect_parts_text(&part_dir);
+        let text = collect_parts_text(storage, &msg_id)?;
         if text.trim().is_empty() {
             continue;
         }
@@ -380,13 +382,34 @@ fn parse_sqlite_source(source: &str) -> Option<(PathBuf, String)> {
 
 // ── Delete ──
 
-pub fn delete_session(storage: &Path, path: &Path, session_id: &str) -> Result<bool, String> {
+pub fn delete_session(provider_root: &Path, path: &Path, session_id: &str) -> Result<bool, String> {
+    validate_storage_key(session_id, "session ID")?;
+
     if path.file_name().and_then(|n| n.to_str()) != Some(session_id) {
         return Err(format!("Session path does not match ID"));
     }
 
+    let provider_root = canonicalize_existing_dir(provider_root, "OpenCode root")?;
+    let session_dir = canonicalize_existing_dir(path, "session message directory")?;
+    if !session_dir.starts_with(&provider_root) {
+        return Err("Session path is outside OpenCode root".to_string());
+    }
+
+    let message_root = session_dir
+        .parent()
+        .ok_or_else(|| "Cannot determine OpenCode message root".to_string())?;
+    if message_root.file_name().and_then(|n| n.to_str()) != Some("message") {
+        return Err("Session path is not under OpenCode message directory".to_string());
+    }
+    let storage_root = message_root
+        .parent()
+        .ok_or_else(|| "Cannot determine OpenCode storage root".to_string())?;
+    if !storage_root.starts_with(&provider_root) {
+        return Err("OpenCode storage root is outside provider root".to_string());
+    }
+
     let mut msg_files = Vec::new();
-    collect_json_files(path, &mut msg_files);
+    collect_json_files_for_delete(&session_dir, &mut msg_files)?;
 
     let mut msg_ids = Vec::new();
     for msg_path in &msg_files {
@@ -399,20 +422,34 @@ pub fn delete_session(storage: &Path, path: &Path, session_id: &str) -> Result<b
         }
     }
 
+    let part_root = storage_root.join("part");
+    let mut part_dirs = Vec::new();
     for msg_id in &msg_ids {
-        let part_dir = storage.join("part").join(msg_id);
-        let _ = std::fs::remove_dir_all(&part_dir);
+        validate_storage_key(msg_id, "message ID")?;
+        let part_dir = part_root.join(msg_id);
+        if let Some(part_dir) =
+            resolve_existing_child(&part_root, &part_dir, "message part directory")?
+        {
+            part_dirs.push(part_dir);
+        }
     }
 
-    let session_diff = storage
-        .join("session_diff")
-        .join(format!("{session_id}.json"));
-    let _ = std::fs::remove_file(&session_diff);
+    for part_dir in &part_dirs {
+        remove_dir_if_exists(part_dir)?;
+    }
 
-    let _ = std::fs::remove_dir_all(path);
+    let session_diff_root = storage_root.join("session_diff");
+    let session_diff = session_diff_root.join(format!("{session_id}.json"));
+    if let Some(session_diff) =
+        resolve_existing_child(&session_diff_root, &session_diff, "session diff file")?
+    {
+        remove_file_if_exists(&session_diff)?;
+    }
 
-    if let Some(session_file) = find_session_file(storage, session_id) {
-        let _ = std::fs::remove_file(&session_file);
+    remove_dir_if_exists(&session_dir)?;
+
+    if let Some(session_file) = find_session_file(storage_root, session_id)? {
+        remove_file_if_exists(&session_file)?;
     }
 
     Ok(true)
@@ -474,13 +511,17 @@ fn extract_part_text(part_value: &Value) -> Option<String> {
     }
 }
 
-fn collect_parts_text(part_dir: &Path) -> String {
-    if !part_dir.is_dir() {
-        return String::new();
-    }
+fn collect_parts_text(storage: &Path, msg_id: &str) -> Result<String, String> {
+    validate_storage_key(msg_id, "message ID")?;
 
+    let part_root = storage.join("part");
+    let part_dir = part_root.join(msg_id);
+    let part_dir = match resolve_existing_child(&part_root, &part_dir, "message part directory")? {
+        Some(path) => path,
+        None => return Ok(String::new()),
+    };
     let mut parts = Vec::new();
-    collect_json_files(part_dir, &mut parts);
+    collect_json_files(&part_dir, &mut parts);
 
     let mut texts = Vec::new();
     for part_path in &parts {
@@ -492,33 +533,270 @@ fn collect_parts_text(part_dir: &Path) -> String {
             }
         }
     }
-    texts.join("\n")
+    Ok(texts.join("\n"))
 }
 
 fn collect_json_files(root: &Path, files: &mut Vec<PathBuf>) {
-    if !root.exists() {
-        return;
-    }
-    let entries = match std::fs::read_dir(root) {
-        Ok(e) => e,
-        Err(_) => return,
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect_json_files(&path, files);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("json") {
-            files.push(path);
+    files.extend(crate::utils::collect_files_safely(root, "json"));
+}
+
+fn collect_json_files_for_delete(root: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+    let root = canonicalize_existing_dir(root, "delete scan root")?;
+    let mut visited = std::collections::HashSet::new();
+    visited.insert(root.clone());
+
+    let mut stack = vec![(root.clone(), 0usize)];
+    while let Some((current, depth)) = stack.pop() {
+        let entries = std::fs::read_dir(&current)
+            .map_err(|e| format!("Cannot read {}: {e}", current.display()))?;
+
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("Cannot read directory entry: {e}"))?;
+            let path = entry.path();
+            let metadata = std::fs::symlink_metadata(&path)
+                .map_err(|e| format!("Cannot inspect {}: {e}", path.display()))?;
+
+            if crate::utils::is_link_or_reparse_point(&metadata) {
+                continue;
+            }
+
+            if metadata.is_dir() {
+                if depth >= crate::utils::MAX_SCAN_DEPTH {
+                    continue;
+                }
+                let resolved = path
+                    .canonicalize()
+                    .map_err(|e| format!("Failed to resolve directory {}: {e}", path.display()))?;
+                if !resolved.starts_with(&root) {
+                    return Err("Delete scan resolved outside expected root".to_string());
+                }
+                if visited.insert(resolved.clone()) {
+                    stack.push((resolved, depth + 1));
+                }
+                continue;
+            }
+
+            if metadata.is_file() && path.extension().and_then(|e| e.to_str()) == Some("json") {
+                if files.len() >= crate::utils::MAX_SCAN_FILES {
+                    return Err("Too many files under delete scan root".to_string());
+                }
+                let resolved = path
+                    .canonicalize()
+                    .map_err(|e| format!("Failed to resolve file {}: {e}", path.display()))?;
+                if !resolved.starts_with(&root) {
+                    return Err("Delete scan file resolved outside expected root".to_string());
+                }
+                files.push(resolved);
+            }
         }
+    }
+
+    Ok(())
+}
+
+fn find_session_file(storage: &Path, session_id: &str) -> Result<Option<PathBuf>, String> {
+    let session_root = storage.join("session");
+    if !session_root.exists() {
+        return Ok(None);
+    }
+
+    let expected = format!("{session_id}.json");
+    let mut files = Vec::new();
+    collect_json_files_for_delete(&session_root, &mut files)?;
+    Ok(files
+        .into_iter()
+        .find(|path| path.file_name().and_then(|n| n.to_str()) == Some(&expected)))
+}
+
+fn validate_storage_key(value: &str, label: &str) -> Result<(), String> {
+    let safe = !value.is_empty()
+        && value.len() <= 256
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'));
+
+    if safe {
+        Ok(())
+    } else {
+        Err(format!("Unsafe {label}; refusing to use"))
     }
 }
 
-fn find_session_file(storage: &Path, session_id: &str) -> Option<PathBuf> {
-    let session_root = storage.join("session");
-    let mut files = Vec::new();
-    collect_json_files(&session_root, &mut files);
-    let expected = format!("{session_id}.json");
-    files
-        .into_iter()
-        .find(|p| p.file_name().and_then(|n| n.to_str()) == Some(&expected))
+fn canonicalize_existing_dir(path: &Path, label: &str) -> Result<PathBuf, String> {
+    let metadata = std::fs::symlink_metadata(path)
+        .map_err(|e| format!("Cannot inspect {label} {}: {e}", path.display()))?;
+    if crate::utils::is_link_or_reparse_point(&metadata) {
+        return Err(format!("{label} is a link/reparse point; refusing to delete"));
+    }
+    if !metadata.is_dir() {
+        return Err(format!("{label} is not a directory: {}", path.display()));
+    }
+
+    path.canonicalize()
+        .map_err(|e| format!("Failed to resolve {label}: {e}"))
+}
+
+fn resolve_existing_child(
+    root: &Path,
+    path: &Path,
+    label: &str,
+) -> Result<Option<PathBuf>, String> {
+    let metadata = match std::fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(format!("Cannot inspect {label} {}: {e}", path.display())),
+    };
+    if crate::utils::is_link_or_reparse_point(&metadata) {
+        return Err(format!("{label} is a link/reparse point; refusing to delete"));
+    }
+
+    let root = canonicalize_existing_dir(root, label)?;
+    let resolved = path
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve {label}: {e}"))?;
+    if !resolved.starts_with(&root) {
+        return Err(format!("{label} resolves outside expected root"));
+    }
+
+    Ok(Some(resolved))
+}
+
+fn remove_dir_if_exists(path: &Path) -> Result<(), String> {
+    match std::fs::remove_dir_all(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("Failed to delete directory {}: {e}", path.display())),
+    }
+}
+
+fn remove_file_if_exists(path: &Path) -> Result<(), String> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("Failed to delete file {}: {e}", path.display())),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{delete_session, load_messages};
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn delete_session_removes_only_expected_opencode_paths() {
+        let root = test_root("valid");
+        let _ = std::fs::remove_dir_all(&root);
+
+        let storage = root.join("storage");
+        let session_dir = storage.join("message").join("ses_ok");
+        let part_dir = storage.join("part").join("msg_ok");
+        let session_diff = storage.join("session_diff").join("ses_ok.json");
+        let session_file = storage.join("session").join("ses_ok.json");
+
+        write_file(&session_dir.join("msg_ok.json"), r#"{"id":"msg_ok"}"#);
+        write_file(&part_dir.join("part.json"), "{}");
+        write_file(&session_diff, "{}");
+        write_file(&session_file, "{}");
+
+        let deleted = delete_session(&root, &session_dir, "ses_ok").unwrap();
+
+        assert!(deleted);
+        assert!(!session_dir.exists());
+        assert!(!part_dir.exists());
+        assert!(!session_diff.exists());
+        assert!(!session_file.exists());
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn delete_session_rejects_path_traversal_message_id() {
+        let root = test_root("traversal");
+        let _ = std::fs::remove_dir_all(&root);
+
+        let storage = root.join("storage");
+        let session_dir = storage.join("message").join("ses_bad");
+        let outside_dir = root.join("outside");
+
+        write_file(&session_dir.join("msg_bad.json"), r#"{"id":"../outside"}"#);
+        write_file(&outside_dir.join("keep.txt"), "do not delete");
+
+        let err = delete_session(&root, &session_dir, "ses_bad").unwrap_err();
+
+        assert!(err.contains("Unsafe message ID"));
+        assert!(session_dir.exists());
+        assert!(outside_dir.exists());
+        assert!(outside_dir.join("keep.txt").exists());
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn load_messages_rejects_path_traversal_message_id() {
+        let root = test_root("load-traversal");
+        let _ = std::fs::remove_dir_all(&root);
+
+        let storage = root.join("storage");
+        let session_dir = storage.join("message").join("ses_bad");
+        let outside_dir = storage.join("outside");
+
+        write_file(
+            &session_dir.join("msg_bad.json"),
+            r#"{"id":"../outside","role":"user","time":{"created":1}}"#,
+        );
+        write_file(
+            &outside_dir.join("part.json"),
+            r#"{"type":"text","text":"secret outside content"}"#,
+        );
+
+        let err = load_messages(&session_dir).unwrap_err();
+
+        assert!(err.contains("Unsafe message ID"));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn load_messages_reads_valid_part_directory() {
+        let root = test_root("load-valid");
+        let _ = std::fs::remove_dir_all(&root);
+
+        let storage = root.join("storage");
+        let session_dir = storage.join("message").join("ses_ok");
+
+        write_file(
+            &session_dir.join("msg_ok.json"),
+            r#"{"id":"msg_ok","role":"user","time":{"created":1}}"#,
+        );
+        write_file(
+            &storage.join("part").join("msg_ok").join("part.json"),
+            r#"{"type":"text","text":"hello"}"#,
+        );
+
+        let messages = load_messages(&session_dir).unwrap();
+
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].content, "hello");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    fn test_root(name: &str) -> PathBuf {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::current_dir()
+            .unwrap()
+            .join("target")
+            .join("opencode-delete-tests")
+            .join(format!("{name}-{}-{unique}", std::process::id()))
+    }
+
+    fn write_file(path: &Path, contents: &str) {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(path, contents).unwrap();
+    }
 }
