@@ -1,9 +1,9 @@
 [package]
 name = "swt"
-version = "0.2.0"
+version = "0.2.5"
 edition = "2021"
 description = "Browse, search, resume and delete AI coding sessions — OpenCode, Claude Code, Codex. One binary, zero config."
-repository = "https://github.com/your-username/swt"
+repository = "https://github.com/yudu-steven/swt"
 license = "MIT"
 
 [dependencies]
